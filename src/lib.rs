@@ -40,7 +40,7 @@ unsafe extern "C" {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::{Context, Result, ensure};
+    use anyhow::Context as _;
     use std::ffi::CStr;
     use std::ptr;
     use std::sync::Mutex;
@@ -57,51 +57,51 @@ mod tests {
     unsafe extern "C" fn noop_handler(_len: c_int, _msg: *mut c_char, _ud: *mut c_void) {}
 
     #[test]
-    fn version() -> Result<()> {
-        let v = unsafe { CStr::from_ptr(pkl_version()) }.to_str()?;
-        ensure!(v.starts_with("0.30"), "unexpected version: {v}");
-        Ok(())
+    fn version() {
+        let v = unsafe { CStr::from_ptr(pkl_version()) }
+            .to_str()
+            .expect("invalid version");
+        assert!(v.starts_with("0.30"), "unexpected version: {v}");
     }
 
     #[test]
-    fn init_close() -> Result<()> {
+    fn init_close() {
         let _guard = LOCK.lock().unwrap();
         let mut exec: *mut pkl_exec_t = ptr::null_mut();
         let mut e = err();
 
         let rc = unsafe { pkl_init(noop_handler, ptr::null_mut(), &mut exec, &mut e) };
-        ensure!(rc == 0, "pkl_init failed: {rc}");
-        ensure!(!exec.is_null(), "exec is null after pkl_init");
+        assert_eq!(rc, 0, "pkl_init failed: {rc}");
+        assert!(!exec.is_null(), "exec is null after pkl_init");
 
         // Only one instance allowed.
         let rc = unsafe { pkl_init(noop_handler, ptr::null_mut(), &mut exec, &mut e) };
-        ensure!(rc != 0);
-        ensure!(
-            unsafe { CStr::from_ptr(e.message) }
-                == c"pkl_init called multiple times without calling pkl_close"
+        assert_ne!(rc, 0);
+        assert_eq!(
+            unsafe { CStr::from_ptr(e.message) },
+            c"pkl_init called multiple times without calling pkl_close"
         );
 
         let rc = unsafe { pkl_close(exec, &mut e) };
-        ensure!(rc == 0, "pkl_close failed: {rc}");
-        Ok(())
+        assert_eq!(rc, 0, "pkl_close failed: {rc}");
     }
 
     #[test]
-    fn nulls() -> Result<()> {
+    fn nulls() -> anyhow::Result<()> {
         let mut e = err();
         let rc = unsafe { pkl_send_message(ptr::null_mut(), 0, ptr::null_mut(), &mut e) };
-        ensure!(rc == -1);
-        ensure!(unsafe { CStr::from_ptr(e.message) } == c"pexec is null");
+        assert_eq!(rc, -1);
+        assert_eq!(unsafe { CStr::from_ptr(e.message) }, c"pexec is null");
 
         let mut e = err();
         let rc = unsafe { pkl_close(ptr::null_mut(), &mut e) };
-        ensure!(rc == -1);
-        ensure!(unsafe { CStr::from_ptr(e.message) } == c"pexec is null");
+        assert_eq!(rc, -1);
+        assert_eq!(unsafe { CStr::from_ptr(e.message) }, c"pexec is null");
         Ok(())
     }
 
     #[test]
-    fn roundtrip() -> Result<()> {
+    fn roundtrip() -> anyhow::Result<()> {
         use std::sync::mpsc;
         use std::time::Duration;
 
@@ -118,7 +118,7 @@ mod tests {
         let mut exec: *mut pkl_exec_t = ptr::null_mut();
         let mut e = err();
         let rc = unsafe { pkl_init(handler, &tx as *const _ as *mut c_void, &mut exec, &mut e) };
-        ensure!(rc == 0, "pkl_init failed: {rc}");
+        assert_eq!(rc, 0, "pkl_init failed: {rc}");
 
         // CreateEvaluator request: [0x20, {requestId, allowedModules, allowedResources}]
         use rmpv::Value;
@@ -151,15 +151,16 @@ mod tests {
                 &mut e,
             )
         };
-        ensure!(rc == 0, "pkl_send_message failed: {rc}");
+        assert_eq!(rc, 0, "pkl_send_message failed: {rc}");
 
         let response = rx
             .recv_timeout(Duration::from_secs(1))
             .context("no response")?;
         let val = rmpv::decode::read_value(&mut &response[..])?;
         let arr = val.as_array().context("response is not array")?;
-        ensure!(
-            arr[0].as_u64() == Some(0x21),
+        assert_eq!(
+            arr[0].as_u64(),
+            Some(0x21),
             "expected CreateEvaluatorResponse (0x21)"
         );
 
@@ -168,10 +169,10 @@ mod tests {
             .iter()
             .find(|(k, _)| k.as_str() == Some("evaluatorId"))
             .context("missing evaluatorId")?;
-        ensure!(eval_id.1.as_i64().is_some(), "evaluatorId is not int");
+        assert!(eval_id.1.as_i64().is_some(), "evaluatorId is not int");
 
         let rc = unsafe { pkl_close(exec, &mut e) };
-        ensure!(rc == 0, "pkl_close failed: {rc}");
+        assert_eq!(rc, 0, "pkl_close failed: {rc}");
         Ok(())
     }
 }
