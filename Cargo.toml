@@ -1,0 +1,15 @@
+[package]
+name = "libpkl-sys"
+description = "Low-level bindings to libpkl"
+version = "0.1.0"
+edition = "2024"
+links = "pkl"
+authors = ["Colin Marc <hi@colinmarc.com>"]
+license = "MIT"
+
+[dev-dependencies]
+anyhow = "1"
+rmpv = "1"
+
+[build-dependencies]
+anyhow = "1"
