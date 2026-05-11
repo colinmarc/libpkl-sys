@@ -8,11 +8,6 @@ fn main() -> anyhow::Result<()> {
     println!("cargo:rerun-if-changed=build.rs");
 
     let lib_dir = build_from_source()?;
-    ensure!(
-        lib_dir.join("libpkl.a").exists(),
-        "libpkl.a not found in {}",
-        lib_dir.display()
-    );
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     println!("cargo:rustc-link-lib=static=pkl");
@@ -29,9 +24,6 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn build_from_source() -> anyhow::Result<PathBuf> {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let lib_dir = out_dir.join("libpkl");
-
     let java_home = env::var("JAVA_HOME").context("JAVA_HOME must be set")?;
     let native_image = Path::new(&java_home).join("bin/native-image");
     if !native_image.exists() {
@@ -65,13 +57,11 @@ fn build_from_source() -> anyhow::Result<PathBuf> {
         .status()
         .context("Failed to execute pkl/gradlew")?;
     ensure!(status.success(), "Gradle :libpkl:assembleNative failed");
+    ensure!(
+        build_dir.join("libpkl.a").exists(),
+        "libpkl.a not found in {}",
+        build_dir.display()
+    );
 
-    std::fs::create_dir_all(&lib_dir).context("Failed to create output directory")?;
-    for name in ["libpkl.a", "pkl.h"] {
-        let src = build_dir.join(name);
-        let dst = lib_dir.join(name);
-        std::fs::copy(&src, &dst).context(format!("Failed to copy {}", src.display()))?;
-    }
-
-    Ok(lib_dir)
+    Ok(build_dir)
 }
